@@ -164,6 +164,67 @@ def api_delete_pred(pid):
     return jsonify({"deleted": pid})
 
 
+# ── BULK PREDICT from CSV ─────────────────────────────────────
+@app.route("/api/predict/bulk", methods=["POST"])
+def api_predict_bulk():
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    text   = request.files["file"].read().decode("utf-8-sig")
+    reader = csv.DictReader(io.StringIO(text))
+    results, errors, skipped = [], [], 0
+
+    for i, row in enumerate(reader, 1):
+        row = {k.strip().lower().replace(" ","_"): v.strip() for k,v in row.items()}
+        try:
+            data = {
+                "name":              row.get("name", f"Student {i}"),
+                "matric_no":         row.get("matric_no", row.get("matric", f"UNK/{i:04d}")),
+                "level":             row.get("level", "100"),
+                "study_hours":       float(row.get("study_hours", 8) or 8),
+                "family_income":     row.get("family_income", "middle") or "middle",
+                "has_part_time_job": int(float(row.get("has_part_time_job", 0) or 0)),
+                "mental_health":     int(float(row.get("mental_health", 5) or 5)),
+                "has_internet":      int(float(row.get("has_internet", 1) or 1)),
+                "carryover_subjects":int(float(row.get("carryover_subjects", 0) or 0)),
+            }
+            pred = predictor.predict(data)
+            row_id = save_prediction({**data, **pred})
+            results.append({
+                "id":                row_id,
+                "name":              data["name"],
+                "matric_no":         data["matric_no"],
+                "level":             data["level"],
+                "study_hours":       data["study_hours"],
+                "family_income":     data["family_income"],
+                "has_part_time_job": data["has_part_time_job"],
+                "mental_health":     data["mental_health"],
+                "has_internet":      data["has_internet"],
+                "carryover_subjects":data["carryover_subjects"],
+                "predicted_result":  pred["predicted_result"],
+                "predicted_cgpa":    pred["predicted_cgpa"],
+                "pass_probability":  pred["pass_probability"],
+                "risk_level":        pred["risk_level"],
+                "risk_score":        pred["risk_score"],
+                "model_confidence":  pred["model_confidence"],
+            })
+        except Exception as e:
+            errors.append({"row": i, "error": str(e)}); skipped += 1
+
+    pass_count = sum(1 for r in results if r["predicted_result"] == "PASS")
+    high_risk  = sum(1 for r in results if r["risk_level"] == "HIGH")
+
+    return jsonify({
+        "predicted":  len(results),
+        "skipped":    skipped,
+        "pass_count": pass_count,
+        "fail_count": len(results) - pass_count,
+        "high_risk":  high_risk,
+        "errors":     errors[:10],
+        "results":    results,
+    })
+
+
 # ── Model Status ──────────────────────────────────────────────
 @app.route("/api/model")
 def api_model():
