@@ -271,16 +271,53 @@ class StudentPredictor:
 
         # Ensemble
         ens_pass = round((0.4*rf_p[1] + 0.4*gb_p[1] + 0.2*lr_p[1])*100, 1)
+
+        # ── HARD OVERRIDE RULES ──────────────────────────────────
+        # Real-world logic: some combinations ALWAYS lead to failure
+        # regardless of what ML says
+        mental  = int(data.get("mental_health", 5))
+        carry   = int(data.get("carryover_subjects", 0))
+        hrs     = float(data.get("study_hours", 8))
+        inet    = int(data.get("has_internet", 1))
+        income  = data.get("family_income", "middle")
+        partjob = int(data.get("has_part_time_job", 0))
+
+        risk_level, risk_score = compute_risk(data)
+
+        # Rule 1: 5+ carry-overs = almost certainly FAIL
+        if carry >= 5:
+            ens_pass = min(ens_pass, 20.0)
+
+        # Rule 2: 4+ carry-overs AND mental health ≤ 3 = FAIL
+        if carry >= 4 and mental <= 3:
+            ens_pass = min(ens_pass, 15.0)
+
+        # Rule 3: study < 2hrs AND carry ≥ 3 = FAIL
+        if hrs < 2 and carry >= 3:
+            ens_pass = min(ens_pass, 18.0)
+
+        # Rule 4: mental health 1 AND no internet AND low income = FAIL
+        if mental <= 1 and not inet and income == "low":
+            ens_pass = min(ens_pass, 10.0)
+
+        # Rule 5: risk score ≥ 75 → cap pass probability at 40%
+        if risk_score >= 75:
+            ens_pass = min(ens_pass, 40.0)
+
+        # Rule 6: risk score ≥ 90 → hard FAIL
+        if risk_score >= 90:
+            ens_pass = min(ens_pass, 12.0)
+
+        ens_pass = round(ens_pass, 1)
         ens_fail = round(100 - ens_pass, 1)
         pred     = "PASS" if ens_pass >= 50 else "FAIL"
 
-        # Confidence
+        # Confidence — lower when overrides applied
         if ens_pass >= 80 or ens_pass <= 20: conf = "HIGH"
         elif ens_pass >= 65 or ens_pass <= 35: conf = "MEDIUM"
         else: conf = "LOW"
 
         pred_cgpa = cgpa_from_lifestyle(data, ens_pass)
-        risk_level, risk_score = compute_risk(data)
 
         return {
             "predicted_result":  pred,
