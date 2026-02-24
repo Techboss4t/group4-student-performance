@@ -167,8 +167,11 @@ def api_predict():
     if not body:
         return jsonify({"error": "No data sent"}), 400
 
-    # Run prediction
-    result = predictor.predict(body)
+    try:
+        # Run prediction
+        result = predictor.predict(body)
+    except Exception as e:
+        return jsonify({"error": f"Prediction failed: {str(e)}"}), 500
 
     # Save to DB
     row_id = save_prediction({
@@ -274,7 +277,12 @@ def api_predict_bulk():
                 "prev3_stat_score":    float(row.get("prev3_stat_score", 0) or 0),
                 "prev3_cgpa":          float(row.get("prev3_cgpa", 0) or 0),
             }
-            pred = predictor.predict(data)
+            try:
+                pred = predictor.predict(data)
+            except Exception as e:
+                errors.append({"row": i, "error": f"Prediction failed: {str(e)}"})
+                skipped += 1
+                continue
             row_id = save_prediction({**data, **pred})
             results.append({
                 "id":                row_id,
