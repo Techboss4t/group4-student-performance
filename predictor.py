@@ -13,11 +13,18 @@ PASS_MARK  = 40
 # How much each past level contributes (always sums to 30%)
 # Key = current level, Value = list of (level_name, weight) oldest→newest
 LEVEL_WEIGHTS = {
-    "100": [],                                                        # no history
+    "100": [],
     "200": [("100L", 0.30)],
     "300": [("100L", 0.15), ("200L", 0.15)],
     "400": [("100L", 0.10), ("200L", 0.10), ("300L", 0.10)],
     "500": [("100L", 0.075),("200L", 0.075),("300L", 0.075),("400L", 0.075)],
+}
+# Display weights for UI labels (percentages as strings)
+LEVEL_WEIGHT_LABELS = {
+    "200": ["30%"],
+    "300": ["15%", "15%"],
+    "400": ["10%", "10%", "10%"],
+    "500": ["7.5%", "7.5%", "7.5%", "7.5%"],
 }
 LEVEL_KEYS = {
     "100L": ("l100_physics","l100_prog","l100_stat","l100_cgpa"),
@@ -229,13 +236,23 @@ class StudentPredictor:
             pp  = avg_to_prob(avg, cgpa)
             personal_total += w * pp
             levels_used.append({"level": lbl, "avg": round(avg,1),
-                                 "cgpa": cgpa, "prob": pp, "weight": round(w*100)})
+                                 "cgpa": cgpa, "prob": pp, "weight": w*100})
 
-        # Work out actual split
+        # ── STRICT 70/30 RULE ───────────────────────────────────
+        # ML is ALWAYS 70%. Missing levels → their 30% slot is
+        # simply not counted (reduces personal weight, not ML weight).
+        # Total weights always sum to: 70% + however much personal data was provided.
         personal_weight = sum(e["weight"]/100 for e in levels_used) if levels_used else 0
-        ml_weight = 1.0 - personal_weight   # at least 0.70, up to 1.0
+        ml_weight = 0.70  # always 70% — never changes
 
+        # Scale personal contributions to their actual filled weight
         ens_pass = round((ml_weight * ml_prob) + personal_total, 1)
+        # Normalise to 100%: divide by actual total weight used
+        total_weight = ml_weight + personal_weight
+        if total_weight > 0:
+            ens_pass = round(ens_pass / total_weight * 100 * (ml_weight + personal_weight), 1)
+            # Simpler: just blend properly
+            ens_pass = round((0.70 * ml_prob) + personal_total, 1)
 
         # ── Hard override rules ───────────────────────────────────
         mental = int(data.get("mental_health", 5))

@@ -25,6 +25,56 @@ print("="*60)
 init_db()
 predictor = get_predictor()
 
+# ── Auto-seed real student data from CSV on first run ─────────
+import os, csv as _csv
+SEED_CSV = os.path.join(os.path.dirname(__file__), "Student_Performance_Dataset_full.csv")
+_INCOME_MAP = {'Postgraduate':'high','Graduate':'middle','High School':'low'}
+
+def _seed_real_data():
+    from database import get_all_training_data, insert_training_batch, log_training
+    existing = get_all_training_data()
+    if len(existing) >= 1000:
+        print(f"  ✔  DB already seeded ({len(existing)} students) — skipping CSV load")
+        return
+    if not os.path.exists(SEED_CSV):
+        print("  ⚠  Seed CSV not found — skipping auto-seed")
+        return
+    rows = []
+    with open(SEED_CSV, encoding='utf-8-sig') as f:
+        for r in _csv.DictReader(f):
+            try:
+                rows.append({
+                    'name':              r['Student_ID'],
+                    'matric_no':         r['Student_ID'],
+                    'calc_score':        float(r['Math_Score']),
+                    'physics_score':     float(r['Science_Score']),
+                    'chem_score':        float(r['Science_Score']),
+                    'prog_score':        float(r['Previous_Year_Score']),
+                    'stat_score':        float(r['English_Score']),
+                    'attendance':        float(r['Attendance_Percentage']),
+                    'study_hours':       float(r['Study_Hours_Per_Day']),
+                    'family_income':     _INCOME_MAP.get(r.get('Parental_Education','Graduate'),'middle'),
+                    'has_part_time_job': 0,
+                    'mental_health':     7,
+                    'has_internet':      1 if r.get('Internet_Access','No')=='Yes' else 0,
+                    'carryover_subjects':0,
+                    'actual_result':     'PASS' if r.get('Pass_Fail','Fail')=='Pass' else 'FAIL',
+                    'actual_cgpa':       round(float(r.get('Final_Percentage',0))/20, 2),
+                })
+            except Exception:
+                pass
+    if rows:
+        inserted = insert_training_batch(rows)
+        print(f"  ✔  Auto-seeded {inserted} real students from CSV")
+        all_data = get_all_training_data()
+        if len(all_data) >= 20:
+            retrained = predictor.train_on_real_data(all_data)
+            if retrained:
+                log_training(predictor.sample_count, predictor.rf_acc, predictor.gb_acc, predictor.lr_acc)
+                print(f"  ✔  AI trained on real data — RF:{predictor.rf_acc}% GB:{predictor.gb_acc}% LR:{predictor.lr_acc}%")
+
+_seed_real_data()
+
 # Retrain on real data at startup if enough exists
 real = get_all_training_data()
 if len(real) >= 20:
