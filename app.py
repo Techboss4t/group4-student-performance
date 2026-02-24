@@ -131,10 +131,22 @@ def api_predict():
         "mental_health":       int(body.get("mental_health", 5)),
         "has_internet":        int(body.get("has_internet", 1)),
         "carryover_subjects":  int(body.get("carryover_subjects", 0)),
-        "prev_physics_score":  float(body.get("prev_physics_score", 0)),
-        "prev_prog_score":     float(body.get("prev_prog_score", 0)),
-        "prev_stat_score":     float(body.get("prev_stat_score", 0)),
-        "prev_cgpa":           float(body.get("prev_cgpa", 0)),
+        "l100_physics":          float(body.get("l100_physics", 0)),
+        "l100_prog":          float(body.get("l100_prog", 0)),
+        "l100_stat":          float(body.get("l100_stat", 0)),
+        "l100_cgpa":          float(body.get("l100_cgpa", 0)),
+        "l200_physics":          float(body.get("l200_physics", 0)),
+        "l200_prog":          float(body.get("l200_prog", 0)),
+        "l200_stat":          float(body.get("l200_stat", 0)),
+        "l200_cgpa":          float(body.get("l200_cgpa", 0)),
+        "l300_physics":          float(body.get("l300_physics", 0)),
+        "l300_prog":          float(body.get("l300_prog", 0)),
+        "l300_stat":          float(body.get("l300_stat", 0)),
+        "l300_cgpa":          float(body.get("l300_cgpa", 0)),
+        "l400_physics":          float(body.get("l400_physics", 0)),
+        "l400_prog":          float(body.get("l400_prog", 0)),
+        "l400_stat":          float(body.get("l400_stat", 0)),
+        "l400_cgpa":          float(body.get("l400_cgpa", 0)),
         "prev2_physics_score": float(body.get("prev2_physics_score", 0)),
         "prev2_prog_score":    float(body.get("prev2_prog_score", 0)),
         "prev2_stat_score":    float(body.get("prev2_stat_score", 0)),
@@ -213,14 +225,7 @@ def api_predict_bulk():
                 "prev3_cgpa":          float(row.get("prev3_cgpa", 0) or 0),
             }
             pred = predictor.predict(data)
-            row_id = save_prediction({
-                **data,
-                "prev_physics_score": data.get("prev_physics_score", 0),
-                "prev_prog_score":    data.get("prev_prog_score", 0),
-                "prev_stat_score":    data.get("prev_stat_score", 0),
-                "prev_cgpa":          data.get("prev_cgpa", 0),
-                **pred,
-            })
+            row_id = save_prediction({**data, **pred})
             results.append({
                 "id":                row_id,
                 "name":              data["name"],
