@@ -60,6 +60,23 @@ CREATE TABLE IF NOT EXISTS predictions (
     has_internet     INTEGER DEFAULT 1,
     carryover_subjects INTEGER DEFAULT 0,
 
+    -- Previous level grades (30% personal data)
+    -- Level 1 = most recent previous (e.g. 200L for a 300L student)
+    prev_physics_score  REAL DEFAULT 0,
+    prev_prog_score     REAL DEFAULT 0,
+    prev_stat_score     REAL DEFAULT 0,
+    prev_cgpa           REAL DEFAULT 0,
+    -- Level 2 = two levels back (e.g. 100L for a 300L student)
+    prev2_physics_score REAL DEFAULT 0,
+    prev2_prog_score    REAL DEFAULT 0,
+    prev2_stat_score    REAL DEFAULT 0,
+    prev2_cgpa          REAL DEFAULT 0,
+    -- Level 3 = three levels back (e.g. 100L for a 400L student)
+    prev3_physics_score REAL DEFAULT 0,
+    prev3_prog_score    REAL DEFAULT 0,
+    prev3_stat_score    REAL DEFAULT 0,
+    prev3_cgpa          REAL DEFAULT 0,
+
     -- AI prediction outputs
     predicted_result TEXT,     -- PASS or FAIL
     predicted_cgpa   REAL,
@@ -122,11 +139,17 @@ def save_prediction(data: dict) -> int:
         INSERT INTO predictions
             (name, matric_no, level, study_hours, family_income, has_part_time_job,
              mental_health, has_internet, carryover_subjects,
+             prev_physics_score,  prev_prog_score,  prev_stat_score,  prev_cgpa,
+             prev2_physics_score, prev2_prog_score, prev2_stat_score, prev2_cgpa,
+             prev3_physics_score, prev3_prog_score, prev3_stat_score, prev3_cgpa,
              predicted_result, predicted_cgpa, pass_probability,
              risk_level, risk_score, model_confidence)
         VALUES
             (:name,:matric_no,:level,:study_hours,:family_income,:has_part_time_job,
              :mental_health,:has_internet,:carryover_subjects,
+             :prev_physics_score,  :prev_prog_score,  :prev_stat_score,  :prev_cgpa,
+             :prev2_physics_score, :prev2_prog_score, :prev2_stat_score, :prev2_cgpa,
+             :prev3_physics_score, :prev3_prog_score, :prev3_stat_score, :prev3_cgpa,
              :predicted_result,:predicted_cgpa,:pass_probability,
              :risk_level,:risk_score,:model_confidence)
         ON CONFLICT(matric_no) DO UPDATE SET
@@ -134,6 +157,18 @@ def save_prediction(data: dict) -> int:
             family_income=excluded.family_income, has_part_time_job=excluded.has_part_time_job,
             mental_health=excluded.mental_health, has_internet=excluded.has_internet,
             carryover_subjects=excluded.carryover_subjects,
+            prev_physics_score=excluded.prev_physics_score,
+            prev_prog_score=excluded.prev_prog_score,
+            prev_stat_score=excluded.prev_stat_score,
+            prev_cgpa=excluded.prev_cgpa,
+            prev2_physics_score=excluded.prev2_physics_score,
+            prev2_prog_score=excluded.prev2_prog_score,
+            prev2_stat_score=excluded.prev2_stat_score,
+            prev2_cgpa=excluded.prev2_cgpa,
+            prev3_physics_score=excluded.prev3_physics_score,
+            prev3_prog_score=excluded.prev3_prog_score,
+            prev3_stat_score=excluded.prev3_stat_score,
+            prev3_cgpa=excluded.prev3_cgpa,
             predicted_result=excluded.predicted_result, predicted_cgpa=excluded.predicted_cgpa,
             pass_probability=excluded.pass_probability, risk_level=excluded.risk_level,
             risk_score=excluded.risk_score, model_confidence=excluded.model_confidence,

@@ -450,8 +450,8 @@ tbody tr:hover td{background:rgba(59,130,246,.04)}
         <div class="fg2">
           <div class="fl"><label>Full Name *</label><input type="text" id="p-name" placeholder="e.g. Amaka Obi"/></div>
           <div class="fl"><label>Matric Number *</label><input type="text" id="p-matric" placeholder="e.g. CSC/2024/1001"/></div>
-          <div class="fl"><label>Level</label>
-            <select id="p-level">
+          <div class="fl"><label>Current Level</label>
+            <select id="p-level" onchange="updatePrevLabel()">
               <option value="100">100 Level</option><option value="200">200 Level</option>
               <option value="300">300 Level</option><option value="400">400 Level</option>
               <option value="500">500 Level</option>
@@ -461,6 +461,9 @@ tbody tr:hover td{background:rgba(59,130,246,.04)}
             <input type="number" id="p-carry" min="0" max="15" value="0" placeholder="0"/>
           </div>
         </div>
+
+        <!-- Dynamic Previous Grades Section -->
+        <div id="prev-grades-wrap" style="margin:16px 0"></div>
 
         <span class="fsec">📖 Study Habits</span>
         <div class="fg2">
@@ -787,7 +790,19 @@ async function doPrediction(){
     has_part_time_job: document.getElementById('p-job').checked?1:0,
     mental_health:   parseInt(document.getElementById('p-mh').value)||5,
     has_internet:    document.getElementById('p-net').checked?1:0,
-    carryover_subjects: parseInt(document.getElementById('p-carry').value)||0,
+    carryover_subjects:  parseInt(document.getElementById('p-carry').value)||0,
+    prev_physics_score:  parseFloat(document.getElementById('prev-phy')?.value)||0,
+    prev_prog_score:     parseFloat(document.getElementById('prev-prog')?.value)||0,
+    prev_stat_score:     parseFloat(document.getElementById('prev-stat')?.value)||0,
+    prev_cgpa:           parseFloat(document.getElementById('prev-cgpa')?.value)||0,
+    prev2_physics_score: parseFloat(document.getElementById('prev2-phy')?.value)||0,
+    prev2_prog_score:    parseFloat(document.getElementById('prev2-prog')?.value)||0,
+    prev2_stat_score:    parseFloat(document.getElementById('prev2-stat')?.value)||0,
+    prev2_cgpa:          parseFloat(document.getElementById('prev2-cgpa')?.value)||0,
+    prev3_physics_score: parseFloat(document.getElementById('prev3-phy')?.value)||0,
+    prev3_prog_score:    parseFloat(document.getElementById('prev3-prog')?.value)||0,
+    prev3_stat_score:    parseFloat(document.getElementById('prev3-stat')?.value)||0,
+    prev3_cgpa:          parseFloat(document.getElementById('prev3-cgpa')?.value)||0,
   };
 
   try{
@@ -814,6 +829,12 @@ function showPredResult(input,r){
         <div class="rc-meta">
           Predicted CGPA: <strong style="color:var(--cyan)">${(r.predicted_cgpa||0).toFixed(2)}</strong>
           &nbsp;/&nbsp; Pass Probability: <strong>${r.pass_probability||0}%</strong>
+        </div>
+        <div style="margin-top:5px;font-size:.74rem;font-family:var(--mono);color:var(--sub)">
+          🤖 AI (70%): <span style="color:var(--cyan)">${r.ml_contribution||0}pts</span>
+          &nbsp;+&nbsp;
+          📚 Your history (30%): <span style="color:var(--green)">${r.personal_contribution||0}pts</span>
+          ${r.has_prev_data?'&nbsp;·&nbsp;Prev avg: <span style="color:var(--text)">'+r.prev_avg+'%</span>':'&nbsp;·&nbsp;<span style="color:var(--amber)">No prev grades entered</span>'}
         </div>
         <div class="rc-risk risk-${risk}">⚡ ${risk} RISK &nbsp;·&nbsp; Score: ${r.risk_score||0}/100</div>
         <div class="rc-conf">Model Confidence: <span style="color:${confColor}">${r.model_confidence}</span> &nbsp;·&nbsp; Trained on: ${r.trained_on}</div>
@@ -859,8 +880,86 @@ function showPredResult(input,r){
   setTimeout(()=>area.scrollIntoView({behavior:'smooth',block:'start'}),100);
 }
 
+function updatePrevLabel(){
+  const lv = parseInt(document.getElementById('p-level').value);
+  const wrap = document.getElementById('prev-grades-wrap');
+
+  // 100L — no previous grades
+  if(lv === 100){
+    wrap.innerHTML = `
+      <div style="padding:14px 18px;background:rgba(59,130,246,.05);border:1px solid rgba(59,130,246,.15);border-radius:12px;font-size:.8rem;color:var(--sub)">
+        ℹ️ You are in <strong style="color:var(--text)">100 Level</strong> — no previous grades needed. Prediction uses <strong style="color:var(--cyan)">100% AI model</strong> data.
+      </div>`;
+    return;
+  }
+
+  // Build list of levels to fill in
+  // 200L → [100L]
+  // 300L → [200L, 100L]
+  // 400L → [300L, 200L, 100L]
+  // 500L → [400L, 300L, 200L]
+  const levelsNeeded = [];
+  for(let l = lv-100; l >= Math.max(100, lv-300); l -= 100){
+    levelsNeeded.push(l);
+  }
+
+  const prefixes = ['prev','prev2','prev3'];
+  const weightMap = {
+    200: [30],          // 200L: 70% AI + 30% (100L)
+    300: [20,10],       // 300L: 70% AI + 20% (200L) + 10% (100L)
+    400: [15,10,5],     // 400L: 70% AI + 15% (300L) + 10% (200L) + 5% (100L)
+    500: [12,10,8],     // 500L: 70% AI + 12% + 10% + 8%
+  };
+  const weights = weightMap[lv] || levelsNeeded.map(()=>Math.floor(30/levelsNeeded.length));
+
+  let html2 = `
+    <div style="font-family:var(--mono);font-size:.6rem;letter-spacing:2px;text-transform:uppercase;
+      color:var(--green);margin-bottom:10px;padding:4px 0;border-bottom:1px solid rgba(16,185,129,.2)">
+      30% — Your Previous Level Grades
+    </div>
+    <div style="font-size:.78rem;color:var(--sub);margin-bottom:14px;line-height:1.6">
+      Fill in your results for <strong style="color:var(--text)">each previous level</strong> below.
+      These combine to form <strong style="color:var(--green)">30%</strong> of your prediction alongside the AI's <strong style="color:var(--cyan)">70%</strong>.
+    </div>`;
+
+  levelsNeeded.forEach((prevLv, i) => {
+    const pref = prefixes[i];
+    const w = weights[i] || 10;
+    html2 += `
+      <div style="margin-bottom:14px;padding:14px 16px;background:rgba(16,185,129,.04);
+        border:1px solid rgba(16,185,129,.15);border-radius:12px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+          <span style="font-family:var(--mono);font-size:.62rem;letter-spacing:1.5px;
+            text-transform:uppercase;background:rgba(16,185,129,.15);color:var(--green);
+            padding:3px 10px;border-radius:6px">${prevLv} LEVEL RESULTS</span>
+          <span style="font-size:.72rem;color:var(--sub)">Counts as ${w}% of prediction</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px">
+          <div class="fl"><label>Physics Score</label>
+            <input type="number" id="${pref}-phy" min="0" max="100" placeholder="0–100"/></div>
+          <div class="fl"><label>Programming Score</label>
+            <input type="number" id="${pref}-prog" min="0" max="100" placeholder="0–100"/></div>
+          <div class="fl"><label>Statistics Score</label>
+            <input type="number" id="${pref}-stat" min="0" max="100" placeholder="0–100"/></div>
+          <div class="fl"><label>CGPA (${prevLv} Level)</label>
+            <input type="number" id="${pref}-cgpa" min="0" max="5" step="0.01" placeholder="0.00–5.00"/></div>
+        </div>
+      </div>`;
+  });
+
+  html2 += `<div style="font-size:.72rem;color:var(--dim);margin-top:2px">
+    💡 The more levels you fill in, the more accurate your prediction will be.
+  </div>`;
+
+  wrap.innerHTML = `<div style="padding:16px 18px;background:rgba(16,185,129,.03);border:1px solid rgba(16,185,129,.2);border-radius:12px">${html2}</div>`;
+}
 function clearPred(){
   ['p-name','p-matric','p-carry'].forEach(id=>document.getElementById(id).value='');
+  ['prev','prev2','prev3'].forEach(p=>{
+    ['phy','prog','stat','cgpa'].forEach(f=>{
+      const el=document.getElementById(p+'-'+f); if(el) el.value='';
+    });
+  });
   document.getElementById('p-hrs').value=8;setRV('p-hrs','rv-hrs',8,'');
   document.getElementById('p-mh').value=5;setRV('p-mh','rv-mh',5,'');
   document.getElementById('p-job').checked=false;
@@ -1018,6 +1117,8 @@ function dlBulkTemplate(){
 
 // ── Init ──────────────────────────────────────────────────────
 loadStats();
+updatePrevLabel();
+setTimeout(updatePrevLabel, 100);
 </script>
 </body>
 </html>
